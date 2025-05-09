@@ -1,29 +1,35 @@
 # Default AWS Provider
 provider "aws" {
-  region = "us-east-1" # Adjust accordingly
+  region = "us-east-1"
 }
 
 # Second AWS Provider with an alias
 provider "aws" {
   alias  = "secondary"
-  region = var.aws_region # Use the region from your variables or update manually
+  region = var.aws_region
 }
 
-# Backend setup (S3 Bucket & DynamoDB for state management)
+# S3 bucket for storing Terraform state
 resource "aws_s3_bucket" "terraform_state" {
-  provider = aws # Using the default provider
-
-  bucket = "my-terraform-state-bucket"
+  provider = aws
+  bucket   = "simpletime-bucket-s3"
 
   versioning {
     enabled = true
   }
 
-  server_side_encryption_configuration {
-    rule {
-      apply_server_side_encryption_by_default {
-        sse_algorithm = "AES256"
-      }
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Server-side encryption configuration for the S3 bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "sse" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
     }
   }
 
@@ -33,7 +39,7 @@ resource "aws_s3_bucket" "terraform_state" {
 }
 
 resource "aws_dynamodb_table" "terraform_locks" {
-  provider = aws # Using the default provider
+  provider = aws
 
   name         = "terraform-locks"
   billing_mode = "PAY_PER_REQUEST"
@@ -52,8 +58,8 @@ resource "aws_dynamodb_table" "terraform_locks" {
 # VPC + Subnets (Using the aliased provider)
 module "vpc" {
   providers = {
-  aws = aws.secondary
-}
+    aws = aws.secondary
+  }
 
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
@@ -71,14 +77,14 @@ module "vpc" {
 
 # ECS Cluster
 resource "aws_ecs_cluster" "this" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   name = "simpletime-cluster"
 }
 
 # IAM Role for ECS task
 resource "aws_iam_role" "ecs_task_execution" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   name = "ecsTaskExecutionRole"
 
@@ -95,7 +101,7 @@ resource "aws_iam_role" "ecs_task_execution" {
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   role       = aws_iam_role.ecs_task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
@@ -103,7 +109,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
 
 # ECS Task Definition
 resource "aws_ecs_task_definition" "simpletime" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   family                   = "simpletime-task"
   network_mode             = "awsvpc"
@@ -113,11 +119,11 @@ resource "aws_ecs_task_definition" "simpletime" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
 
   container_definitions = jsonencode([{
-    name      = "simpletime"
-    image     = var.container_image
-    essential = true
+    name      = "simpletime",
+    image     = var.container_image,
+    essential = true,
     portMappings = [{
-      containerPort = 8080
+      containerPort = 8080,
       protocol      = "tcp"
     }]
   }])
@@ -125,7 +131,7 @@ resource "aws_ecs_task_definition" "simpletime" {
 
 # Security group for ECS service
 resource "aws_security_group" "ecs_sg" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   name        = "ecs_sg"
   description = "Allow HTTP"
@@ -146,7 +152,32 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
-# Load Balancer Module (NO listeners inside)
+# Security group for ALB
+resource "aws_security_group" "alb_sg" {
+  provider = aws.secondary
+
+  name        = "alb_sg"
+  description = "Allow HTTP access to ALB"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress {
+    description = "HTTP from anywhere"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow all outbound"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Load Balancer Module
 module "alb" {
   source  = "terraform-aws-modules/alb/aws"
   version = "~> 9.0"
@@ -155,15 +186,16 @@ module "alb" {
   load_balancer_type = "application"
   vpc_id             = module.vpc.vpc_id
   subnets            = module.vpc.public_subnets
-  security_groups    = [aws_security_group.ecs_sg.id]
+  security_groups    = [aws_security_group.alb_sg.id]
 
   providers = {
     aws = aws.secondary
   }
 }
+
 # Target Group for ECS Service
 resource "aws_lb_target_group" "simpletime" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   name        = "simpletime-tg"
   port        = 8080
@@ -177,9 +209,9 @@ resource "aws_lb_target_group" "simpletime" {
   }
 }
 
-# Listener for ALB (attaches the Target Group)
+# Listener for ALB
 resource "aws_lb_listener" "http" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   load_balancer_arn = module.alb.arn
   port              = 80
@@ -193,7 +225,7 @@ resource "aws_lb_listener" "http" {
 
 # ECS Service
 resource "aws_ecs_service" "simpletime" {
-  provider = aws.secondary # Using the aliased provider
+  provider = aws.secondary
 
   name            = "simpletime-service"
   cluster         = aws_ecs_cluster.this.id
