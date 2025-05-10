@@ -22,6 +22,13 @@ jobs:
       with:
         terraform_version: 1.5.0  # You can specify the version of Terraform you want here.
 
+    - name: List files in the repository
+      run: |
+        echo "Current working directory:"
+        pwd
+        echo "List files in the repository:"
+        ls -R
+
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
@@ -44,8 +51,9 @@ jobs:
         aws-region: us-east-1
 
     - name: Terraform Init
-      run: terraform init
-      working-directory: ./terraform
+      run: |
+        cd terraform
+        terraform init
 
     - name: Terraform Apply
       working-directory: ./terraform
