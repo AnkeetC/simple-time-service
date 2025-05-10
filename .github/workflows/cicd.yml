@@ -50,10 +50,16 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
-    - name: Terraform Init
+    - name: Debug Current Dir
       run: |
-        cd terraform
-        terraform init
+        pwd
+        ls -la
+        ls -la ./terraform
+
+    - name: Terraform Init
+      run: terraform init
+      working-directory: terraform
+
 
     - name: Terraform Apply
       working-directory: ./terraform
