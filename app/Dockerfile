@@ -8,17 +8,17 @@ RUN useradd -m appuser
 WORKDIR /app
 
 # Copy requirements and install dependencies
-COPY requirements.txt .
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the app folder (from your local project structure) into the container
-COPY app/ ./app/
+# Copy the full app folder contents into the container
+COPY . .
 
 # Change to non-root user
 USER appuser
 
-# Expose port for the application
+# Expose the port your app runs on
 EXPOSE 8080
 
-# Use Gunicorn to run the app in production
-CMD ["gunicorn", "-b", "0.0.0.0:8080", "app.main:app"]
+# Run the app using Gunicorn
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8080", "main:app"]
