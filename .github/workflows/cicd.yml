@@ -17,6 +17,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.0  # You can specify the version of Terraform you want here.
+
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
@@ -40,7 +45,7 @@ jobs:
 
     - name: Terraform Init
       run: terraform init
-      working-directory: ./terraform 
+      working-directory: ./terraform
 
     - name: Terraform Apply
       working-directory: ./terraform
