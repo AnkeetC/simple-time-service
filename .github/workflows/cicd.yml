@@ -39,8 +39,8 @@ jobs:
         aws-region: us-east-1
 
     - name: Terraform Init
-      working-directory: ./terraform
       run: terraform init
+      working-directory: ./terraform 
 
     - name: Terraform Apply
       working-directory: ./terraform
